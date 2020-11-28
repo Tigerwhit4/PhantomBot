@@ -1,3 +1,20 @@
+/*
+ * Copyright (C) 2016-2020 phantombot.github.io/PhantomBot
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 /**
  * fileSystem.js
  *
@@ -6,7 +23,17 @@
 (function() {
     var JFile = java.io.File,
         JFileInputStream = java.io.FileInputStream,
-        JFileOutputStream = java.io.FileOutputStream;
+        JFileOutputStream = java.io.FileOutputStream,
+        Paths = Packages.java.nio.file.Paths,
+        executionPath = Packages.tv.phantombot.PhantomBot.GetExecutionPath(),
+        fileHandles = [],
+        validPaths = [
+            './addons',
+            './config/audio-hooks',
+            './config/gif-alerts',
+            './logs',
+            './scripts'
+        ];
 
     /**
      * @function readFile
@@ -16,6 +43,16 @@
      */
     function readFile(path) {
         var lines = [];
+
+        if (!fileExists(path)) {
+            return lines;
+        }
+
+        if (invalidLocation(path)) {
+            $.consoleLn('Blocked readFile() target outside of validPaths:' + path);
+            return lines;
+        }
+
         try {
             var fis = new JFileInputStream(path),
                 scan = new java.util.Scanner(fis);
@@ -24,10 +61,10 @@
             }
             fis.close();
         } catch (e) {
-            $.consoleLn('Failed to open \'' + path + '\': ' + e);
+            $.log.error('Failed to open \'' + path + '\': ' + e);
         }
         return lines;
-    };
+    }
 
     /**
      * @function mkDir
@@ -36,9 +73,14 @@
      * @returns {boolean}
      */
     function mkDir(path) {
+        if (invalidLocation(path)){
+            $.consoleLn('Blocked mkDir() target outside of validPaths:' + path);
+            return false;
+        }
+
         var dir = new JFile(path);
         return dir.mkdir();
-    };
+    }
 
     /**
      * @function moveFile
@@ -50,10 +92,19 @@
         var fileO = new JFile(file),
             pathO = new JFile(path);
 
-        if ((fileO != null && pathO != null) || (file != "" && path != "")) {
-            org.apache.commons.io.FileUtils.moveFileToDirectory(file, path, true);
+        if (invalidLocation(file) || invalidLocation(path)) {
+            $.consoleLn('Blocked moveFile() source or target outside of validPaths:' + file + ' to ' + path);
+            return;
         }
-    };
+
+        if ((fileO != null && pathO != null) || (file != "" && path != "")) {
+            try {
+                org.apache.commons.io.FileUtils.moveFileToDirectory(fileO, pathO, true);
+            } catch (ex) {
+                $.log.error("moveFile(" + file + ", " + path + ") failed: " + ex);
+            }
+        }
+    }
 
     /**
      * @function saveArray
@@ -63,6 +114,11 @@
      * @param {boolean} append
      */
     function saveArray(array, path, append) {
+        if (invalidLocation(path)) {
+            $.consoleLn('Blocked saveArray() target outside of validPaths:' + path);
+            return;
+        }
+
         try {
             var fos = new JFileOutputStream(path, append),
                 ps = new java.io.PrintStream(fos),
@@ -72,9 +128,24 @@
             }
             fos.close();
         } catch (e) {
-            $.consoleLn('Failed to write to \'' + path + '\': ' + e);
+            $.log.error('Failed to write to \'' + path + '\': ' + e);
         }
-    };
+    }
+
+    /**
+     * @function closeOpenFiles
+     */
+    function closeOpenFiles() {
+        var dateFormat = new java.text.SimpleDateFormat('MM-dd-yyyy'),
+            date = dateFormat.format(new java.util.Date());
+
+        for (var key in fileHandles) {
+            if (!fileHandles[key].startDate.equals(date)) {
+                fileHandles[key].fos.close();
+                delete fileHandles[key];
+            }
+        }
+    }
 
     /**
      * @function writeToFile
@@ -84,15 +155,38 @@
      * @param {boolean} append
      */
     function writeToFile(line, path, append) {
-        try {
-            var fos = new JFileOutputStream(path, append);
-            var ps = new java.io.PrintStream(fos);
-            ps.println(line);
-            fos.close();
-        } catch (e) {
-            $.consoleLn('Failed to write to \'' + path + '\': ' + e);
+        var dateFormat = new java.text.SimpleDateFormat('MM-dd-yyyy'),
+            date = dateFormat.format(new java.util.Date()),
+            fos,
+            ps;
+
+        if (invalidLocation(path)){
+            $.consoleLn('Blocked writeToFile() target outside of validPaths:' + path);
+            return;
         }
-    };
+
+        closeOpenFiles();
+
+        if (fileHandles[path] !== undefined && append) {
+            fos = fileHandles[path].fos;
+            ps = fileHandles[path].ps;
+        } else {
+            fos = new JFileOutputStream(path, append);
+            ps = new java.io.PrintStream(fos);
+            fileHandles[path] = {
+                fos: fos,
+                ps: ps,
+                startDate: date
+            };
+        }
+
+        try {
+            ps.println(line);
+            fos.flush();
+        } catch (e) {
+            $.log.error('Failed to write to \'' + path + '\': ' + e);
+        }
+    }
 
     /**
      * @function touchFile
@@ -100,13 +194,18 @@
      * @param {string} path
      */
     function touchFile(path) {
+        if (invalidLocation(path)) {
+            $.consoleLn('Blocked touchFile() target outside of validPaths:' + path);
+            return;
+        }
+
         try {
             var fos = new JFileOutputStream(path, true);
             fos.close();
         } catch (e) {
-            $.consoleLn('Failed to touch \'' + path + '\': ' + e);
+            $.log.error('Failed to touch \'' + path + '\': ' + e);
         }
-    };
+    }
 
     /**
      * @function deleteFile
@@ -115,6 +214,11 @@
      * @param {boolean} now
      */
     function deleteFile(path, now) {
+        if (invalidLocation(path)) {
+            $.consoleLn('Blocked deleteFile() target outside of validPaths:' + path);
+            return;
+        }
+
         try {
             var f = new JFile(path);
             if (now) {
@@ -123,9 +227,9 @@
                 f.deleteOnExit();
             }
         } catch (e) {
-            $.consoleLn('Failed to delete \'' + path + '\': ' + e)
+            $.log.error('Failed to delete \'' + path + '\': ' + e);
         }
-    };
+    }
 
     /**
      * @function fileExists
@@ -134,13 +238,18 @@
      * @returns {boolean}
      */
     function fileExists(path) {
+        if (invalidLocation(path)) {
+            $.consoleLn('Blocked fileExists() target outside of validPaths:' + path);
+            return false;
+        }
+
         try {
             var f = new JFile(path);
             return f.exists();
         } catch (e) {
             return false;
         }
-    };
+    }
 
     /**
      * @function findFiles
@@ -150,6 +259,11 @@
      * @returns {Array}
      */
     function findFiles(directory, pattern) {
+        if (invalidLocation(directory)) {
+            $.consoleLn('Blocked findFiles() target outside of validPaths:' + directory);
+            return [];
+        }
+
         try {
             var f = new JFile(directory),
                 ret = [];
@@ -163,10 +277,10 @@
                 return ret;
             }
         } catch (e) {
-            $.consoleLn('Failed to search in \'' + directory + '\': ' + e)
+            $.log.error('Failed to search in \'' + directory + '\': ' + e);
         }
         return [];
-    };
+    }
 
     /**
      * @function isDirectory
@@ -175,13 +289,18 @@
      * @returns {boolean}
      */
     function isDirectory(path) {
+        if (invalidLocation(path)) {
+            $.consoleLn('Blocked isDirectory() target outside of validPaths:' + path);
+            return false;
+        }
+
         try {
             var f = new JFile(path);
             return f.isDirectory();
         } catch (e) {
             return false;
         }
-    };
+    }
 
     /**
      * @function findSize
@@ -190,9 +309,26 @@
      * @returns {Number}
      */
     function findSize(file) {
+        if (invalidLocation(file)) {
+            $.consoleLn('Blocked findSize() target outside of validPaths:' + file);
+            return 0;
+        }
+
         var fileO = new JFile(file);
         return fileO.length();
-    };
+    }
+
+    function invalidLocation(path) {
+        var p = Paths.get(path);
+
+        for (var x in validPaths) {
+            if (p.toAbsolutePath().startsWith(Paths.get(executionPath, validPaths[x]))) {
+                return false;
+            }
+        }
+
+       return true;
+    }
 
     /** Export functions to API */
     $.deleteFile = deleteFile;

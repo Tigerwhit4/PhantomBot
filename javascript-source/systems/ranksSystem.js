@@ -1,15 +1,32 @@
+/*
+ * Copyright (C) 2016-2020 phantombot.github.io/PhantomBot
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 /**
  * Provides for a configurable rank system with various different configurable ranks
  * based on time spent in the channel. This is just aesthetic but could, in theory,
- * be used for other purposes if really desired. 
+ * be used for other purposes if really desired.
  */
 
 (function() {
 
-    rankEligableTime = ($.inidb.exists('settings', 'rankEligableTime') ? parseInt($.inidb.get('settings', 'rankEligableTime')) : 50);
-    rankEligableCost = ($.inidb.exists('settings', 'rankEligableCost') ? parseInt($.inidb.get('settings', 'rankEligableCost')) : 200);
-
-    var ranksTimeTable;
+    var rankEligableTime = $.getSetIniDbNumber('settings', 'rankEligableTime', 50),
+        rankEligableCost = $.getSetIniDbNumber('settings', 'rankEligableCost', 200),
+        time,
+        ranksTimeTable;
 
     /**
      * @function sortCompare
@@ -42,10 +59,13 @@
      * @function hasRank
      * @export $
      * @param {string} username
+     * @param {int} time (optional) Time for the user in seconds. If not set, read from the DB.
      * @returns {boolean}
      */
     function hasRank(username) {
         var userTime;
+
+        username = username.toLowerCase();
 
         // Has a custom rank.
         if ($.inidb.exists('viewerRanks', username.toLowerCase())) {
@@ -60,7 +80,10 @@
             return false;
         }
 
-        userTime = parseInt(parseInt($.inidb.get('time', username)) / 3600);
+        if (time === undefined) {
+          time = parseInt($.inidb.get('time', username));
+        }
+        userTime = parseInt(time / 3600);
         if (isNaN(userTime)) {
             userTime = 0;
         }
@@ -78,13 +101,16 @@
      * @function getRank
      * @export $
      * @param {string} username
+     * @param {int} time (optional) Time for the user in seconds. If not set, read from the DB.
      * @returns {string}
      */
-    function getRank(username) {
+    function getRank(username, time) {
         var userTime,
             userLevel;
 
-        if (!hasRank(username)) {
+        username = username.toLowerCase();
+
+        if (!hasRank(username, time)) {
             return '';
         }
 
@@ -95,7 +121,10 @@
 
         // Return System Rank
         userLevel = -1;
-        userTime = parseInt(parseInt($.inidb.get('time', username)) / 3600);
+        if (time === undefined) {
+          time = parseInt($.inidb.get('time', username));
+        }
+        userTime = parseInt(time / 3600);
         if (isNaN(userTime)) {
             userTime = 0;
         }
@@ -116,10 +145,11 @@
      * @function resolveRank
      * @export $
      * @param {string} username
+     * @param {boolean} resolveName
      * @returns {string}
      */
     function resolveRank(username) {
-        return (getRank(username.toLowerCase()) + ' ' + $.username.resolve(username.toLowerCase())).trim();
+        return (getRank(username.toLowerCase()) + ' ' + ($.username.hasUser(username) == true ? $.username.get(username) : username)).trim();
     }
 
     /**
@@ -133,6 +163,8 @@
             levelTime,
             levelName,
             userTime = parseInt(parseInt($.inidb.get('time', sender)) / 3600),
+            rankEligableTime = $.getIniDbNumber('settings', 'rankEligableTime', 50),
+            rankEligableCost = $.getIniDbNumber('settings', 'rankEligableCost', 200),
             userLevel,
             timeUntilNextRank,
             nextLevel,
@@ -280,7 +312,6 @@
          * @commandpath rank del - Deletes customized rank.
          */
         if (command.equalsIgnoreCase('rank')) {
-
             if (args[0]) {
                 if (args[0].equalsIgnoreCase('del')) {
                     if (inidb.exists('viewerRanks', sender.toLowerCase())) {
@@ -305,7 +336,7 @@
                     customRank = args.splice(1).join(' ');
 
                     if (userTime >= rankEligableTime &&
-                        ($.bot.isModuleEnabled('./systems/pointSystem.js') && getUserPoints(sender) > rankEligableCost) || !$.bot.isModuleEnabled('./systems/pointSystem.js')) {
+                        ($.bot.isModuleEnabled('./systems/pointSystem.js') && $.getUserPoints(sender) > rankEligableCost) || !$.bot.isModuleEnabled('./systems/pointSystem.js')) {
                         $.say($.whisperPrefix(sender) + $.lang.get('ranks.set.success', customRank));
                         $.inidb.set('viewerRanks', sender.toLowerCase(), customRank);
                         if ($.bot.isModuleEnabled('./systems/pointSystem.js')) {
@@ -321,6 +352,11 @@
                     }
                     return;
                 }
+            }
+
+            if ($.inidb.exists('viewerRanks', username.toLowerCase())) {
+                $.say($.lang.get('ranks.rank.customsuccess', username, $.inidb.get('viewerRanks', username.toLowerCase())));
+                return;
             }
 
             if (ranksTimeTable === undefined) {
@@ -340,18 +376,13 @@
                 }
             }
 
-            if ($.inidb.exists('viewerRanks', username.toLowerCase())) {
-                $.say($.lang.get('ranks.rank.customsuccess', username, $.inidb.get('viewerRanks', username.toLowerCase())));
-                return;
-            }
-
             if (userLevel <= ranksTimeTable.length - 2) {
                 nextLevel = parseInt(userLevel) + 1;
                 timeUntilNextRank = parseInt(ranksTimeTable[nextLevel]) - userTime;
                 if (userLevel == -1) {
-                    $.say($.lang.get('ranks.rank.norank.success', username, timeUntilNextRank));
+                    $.say($.lang.get('ranks.rank.norank.success', username, timeUntilNextRank, $.inidb.get('ranksMapping', ranksTimeTable[nextLevel].toString())));
                 } else {
-                    $.say($.lang.get('ranks.rank.success', username, $.inidb.get('ranksMapping', ranksTimeTable[userLevel].toString()), timeUntilNextRank));
+                    $.say($.lang.get('ranks.rank.success', username, $.inidb.get('ranksMapping', ranksTimeTable[userLevel].toString()), timeUntilNextRank, $.inidb.get('ranksMapping', ranksTimeTable[nextLevel].toString())));
                 }
             } else {
                 $.say($.lang.get('ranks.rank.maxsuccess', username, $.inidb.get('ranksMapping', ranksTimeTable[userLevel].toString())));
@@ -366,15 +397,16 @@
      *
      */
     $.bind('initReady', function() {
-        if ($.bot.isModuleEnabled('./systems/ranksSystem.js')) {
-            $.registerChatCommand('./systems/ranksSystem.js', 'rank', 7);
-            $.registerChatCommand('./systems/ranksSystem.js', 'rankedit', 1);
+        $.registerChatCommand('./systems/ranksSystem.js', 'rank', 7);
+        $.registerChatCommand('./systems/ranksSystem.js', 'rankedit', 1);
 
-            $.registerChatSubcommand('rankedit', 'add', 1);
-            $.registerChatSubcommand('rankedit', 'del', 1);
-            $.registerChatSubcommand('rankedit', 'custom', 1);
-            $.registerChatSubcommand('rankedit', 'customdel', 1);
-        }
+        $.registerChatSubcommand('rankedit', 'add', 1);
+        $.registerChatSubcommand('rankedit', 'del', 1);
+        $.registerChatSubcommand('rankedit', 'custom', 1);
+        $.registerChatSubcommand('rankedit', 'customdel', 1);
+
+        $.registerChatSubcommand('rank', 'set', 7);
+        $.registerChatSubcommand('rank', 'del', 7);
     });
 
     /**
@@ -383,4 +415,5 @@
     $.resolveRank = resolveRank;
     $.getRank = getRank;
     $.hasRank = hasRank;
+    $.loadRanksTimeTable = loadRanksTimeTable;
 })();

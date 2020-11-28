@@ -1,7 +1,7 @@
 /* astyle --style=java --indent=spaces=4 */
 
 /*
- * Copyright (C) 2015 www.phantombot.net
+ * Copyright (C) 2016-2020 phantombot.github.io/PhantomBot
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,28 +18,17 @@
  */
 package com.illusionaryone;
 
-import com.gmt2001.UncaughtExceptionHandler;
-import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
-import java.io.BufferedWriter;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.io.OutputStreamWriter;
 import java.io.Reader;
-import java.io.UnsupportedEncodingException;
-import java.io.Writer;
+import javax.net.ssl.HttpsURLConnection;
 import java.net.MalformedURLException;
 import java.net.SocketTimeoutException;
 import java.net.URL;
-import java.net.URLConnection;
-import java.net.URLEncoder;
-import java.net.HttpURLConnection;
 import java.nio.charset.Charset;
-import javax.net.ssl.HttpsURLConnection;
-import org.apache.commons.io.IOUtils;
-import org.json.JSONArray;
+
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -51,11 +40,15 @@ import org.json.JSONObject;
  */
 public class FrankerZAPIv1 {
 
-    private static final FrankerZAPIv1 instance = new FrankerZAPIv1();
-    private static final String sAPIURL = "http://api.frankerfacez.com/v1";
+    private static FrankerZAPIv1 instance;
+    private static final String sAPIURL = "https://api.frankerfacez.com/v1";
     private static final int iHTTPTimeout = 2 * 1000;
 
-    public static FrankerZAPIv1 instance() {
+    public static synchronized FrankerZAPIv1 instance() {
+        if (instance == null) {
+            instance = new FrankerZAPIv1();
+        }
+        
         return instance;
     }
 
@@ -81,7 +74,7 @@ public class FrankerZAPIv1 {
      */
     private static void fillJSONObject(JSONObject jsonObject, boolean success, String type,
                                        String url, int responseCode, String exception,
-                                       String exceptionMessage, String jsonContent) {
+                                       String exceptionMessage, String jsonContent) throws JSONException {
         jsonObject.put("_success", success);
         jsonObject.put("_type", type);
         jsonObject.put("_url", url);
@@ -92,16 +85,16 @@ public class FrankerZAPIv1 {
     }
 
     @SuppressWarnings("UseSpecificCatch")
-    private static JSONObject readJsonFromUrl(String urlAddress) {
+    private static JSONObject readJsonFromUrl(String urlAddress) throws JSONException {
         JSONObject jsonResult = new JSONObject("{}");
         InputStream inputStream = null;
         URL urlRaw;
-        HttpURLConnection urlConn;
+        HttpsURLConnection urlConn;
         String jsonText = "";
 
         try {
             urlRaw = new URL(urlAddress);
-            urlConn = (HttpURLConnection) urlRaw.openConnection();
+            urlConn = (HttpsURLConnection) urlRaw.openConnection();
             urlConn.setDoInput(true);
             urlConn.setRequestMethod("GET");
             urlConn.addRequestProperty("Content-Type", "application/json");
@@ -121,33 +114,34 @@ public class FrankerZAPIv1 {
             fillJSONObject(jsonResult, true, "GET", urlAddress, urlConn.getResponseCode(), "", "", jsonText);
         } catch (JSONException ex) {
             fillJSONObject(jsonResult, false, "GET", urlAddress, 0, "JSONException", ex.getMessage(), jsonText);
-            com.gmt2001.Console.err.printStackTrace(ex);
+            com.gmt2001.Console.err.println("FrankerZAPIv1::readJsonFromUrl::Exception: " + ex.getMessage());
         } catch (NullPointerException ex) {
             fillJSONObject(jsonResult, false, "GET", urlAddress, 0, "NullPointerException", ex.getMessage(), "");
-            com.gmt2001.Console.err.printStackTrace(ex);
+            com.gmt2001.Console.err.println("FrankerZAPIv1::readJsonFromUrl::Exception: " + ex.getMessage());
         } catch (MalformedURLException ex) {
             fillJSONObject(jsonResult, false, "GET", urlAddress, 0, "MalformedURLException", ex.getMessage(), "");
-            com.gmt2001.Console.err.printStackTrace(ex);
+            com.gmt2001.Console.err.println("FrankerZAPIv1::readJsonFromUrl::Exception: " + ex.getMessage());
         } catch (SocketTimeoutException ex) {
             fillJSONObject(jsonResult, false, "GET", urlAddress, 0, "SocketTimeoutException", ex.getMessage(), "");
-            com.gmt2001.Console.err.printStackTrace(ex);
+            com.gmt2001.Console.err.println("FrankerZAPIv1::readJsonFromUrl::Exception: " + ex.getMessage());
         } catch (IOException ex) {
             fillJSONObject(jsonResult, false, "GET", urlAddress, 0, "IOException", ex.getMessage(), "");
-            com.gmt2001.Console.err.printStackTrace(ex);
+            com.gmt2001.Console.err.println("FrankerZAPIv1::readJsonFromUrl::Exception: " + ex.getMessage());
         } catch (Exception ex) {
             fillJSONObject(jsonResult, false, "GET", urlAddress, 0, "Exception", ex.getMessage(), "");
-            com.gmt2001.Console.err.printStackTrace(ex);
+            com.gmt2001.Console.err.println("FrankerZAPIv1::readJsonFromUrl::Exception: " + ex.getMessage());
         } finally {
-            if (inputStream != null)
+            if (inputStream != null) {
                 try {
                     inputStream.close();
                 } catch (IOException ex) {
                     fillJSONObject(jsonResult, false, "GET", urlAddress, 0, "IOException", ex.getMessage(), "");
-                    com.gmt2001.Console.err.printStackTrace(ex);
+                    com.gmt2001.Console.err.println("FrankerZAPIv1::readJsonFromUrl::Exception: " + ex.getMessage());
                 }
+            }
         }
 
-        return(jsonResult);
+        return jsonResult;
     }
 
     /*
@@ -156,7 +150,7 @@ public class FrankerZAPIv1 {
      * @param channel
      * @return
      */
-    public JSONObject GetLocalEmotes(String channel) {
+    public JSONObject GetLocalEmotes(String channel) throws JSONException {
         return readJsonFromUrl(sAPIURL + "/room/" + channel);
     }
 
@@ -165,7 +159,7 @@ public class FrankerZAPIv1 {
      *
      * @return
      */
-    public JSONObject GetGlobalEmotes() {
+    public JSONObject GetGlobalEmotes() throws JSONException {
         return readJsonFromUrl(sAPIURL + "/set/global");
     }
 }

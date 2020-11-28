@@ -1,39 +1,131 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project basedir="." default="dist">
+<project name="PhantomBot" basedir="." default="dist" xmlns:ivy="antlib:org.apache.ivy.ant" xmlns:if="ant:if" xmlns:unless="ant:unless">
+
+    <!--
+
+    Copyright (C) 2016-2020 phantombot.github.io/PhantomBot
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+    -->
+
+    <!-- To specify a Nightly Build run as ant -Dbuildtype=nightly_build -->
+    <!-- To specify a Pre-Release Build run as ant -Dbuildtype=prerelease_build -->
 
     <property environment="env" />
-    <property name="project.base.dir" value="." />
-    <property name="name" value="PhantomBot" />
-    <property name="version" value="2.0.5" />
-    <property name="java.class.path" value="" />
-    <property name="src" value="${project.base.dir}/source" />
-    <property name="reference" value="${project.base.dir}/libraries" />
-    <property name="build" value="${project.base.dir}/build" />
-    <property name="classes" value="${build}/classes" />
-    <property name="dist" value="${project.base.dir}/dist" />
-    <property name="versionfolder" value="${dist}/${name}-${version}" />
-    <property name="version.name" value="${name}-${version}" />
-    <property name="build.dir" value="${dist}/build" />
-    <property name="res.dir" value="${build.dir}" />
-    <property name="lib.dir" value="${build.dir}/lib" />
+    <!-- Please see this for version numbers: https://semver.org/ -->
+    <property name="version" value="3.3.5" />
+    <!-- Please see this for version numbers: https://semver.org/ -->
+    <property name="webpanel.version" value="1.3.0" />
+    <property name="src" location="source" />
+    <property name="reference" location="lib" />
+    <property name="build" location="build" />
+    <property name="classes" location="${build}/classes" />
+    <property name="dist" location="dist" />
+    <property name="version.name" value="${ant.project.name}-${version}" />
+    <property name="version.folder" location="${dist}/${version.name}" />
+    <property name="build.dir" location="${dist}/build" />
+    <property name="res.dir" location="${build.dir}" />
+    <property name="lib.dir" location="${build.dir}/lib" />
+    <!-- Apache Ivy properties -->
+    <property name="ivy.install.version" value="2.5.0-rc1"/>
+    <condition property="ivy.home" value="${env.IVY_HOME}">
+        <isset property="env.IVY_HOME"/>
+    </condition>
+    <property name="ivy.home" value="${user.home}/.ant"/>
+    <property name="ivy.jar.dir" value="${ivy.home}/lib"/>
+    <property name="ivy.jar.file" value="${ivy.jar.dir}/ivy.jar"/>
+
+    <tstamp>
+        <format property="NOW" pattern="MMM dd yyyy HH:mm:ss zzz" timezone="GMT" />
+    </tstamp>
+
     <path id="classpath">
         <fileset dir="${lib.dir}" includes="**/*.jar" />
     </path>
 
-    <path id="reference.class.path">
-        <fileset dir="${reference}">
-            <include name="*.jar" />
-        </fileset>
-    </path>
-    
+    <condition property="build_type" value="${buildtype}" else="stable">
+        <and>
+            <isset property="buildtype" />
+            <length string="${buildtype}" trim="yes" length="0" when="greater" />
+        </and>
+    </condition>
+
     <available file=".git" type="dir" property="git.present"/>
 
+    <target name="download-ivy" unless="offline">
+        <mkdir dir="${ivy.jar.dir}"/>
+        <!-- download Ivy from web site so that it can be used even without any special installation -->
+        <get src="https://repo1.maven.org/maven2/org/apache/ivy/ivy/${ivy.install.version}/ivy-${ivy.install.version}.jar"
+             dest="${ivy.jar.file}" usetimestamp="true"/>
+    </target>
+
+    <target name="init-ivy" depends="download-ivy">
+        <!-- try to load Ivy here from Ivy home, in case the user has not already dropped
+        it into Ant's lib dir (note that the latter copy will always take precedence).
+        We will not fail as long as local lib dir exists (it may be empty) and
+        Ivy is in at least one of Ant's lib dir or the local lib dir. -->
+        <path id="ivy.lib.path">
+            <fileset dir="${ivy.jar.dir}" includes="*.jar"/>
+
+        </path>
+        <taskdef resource="org/apache/ivy/ant/antlib.xml"
+                 uri="antlib:org.apache.ivy.ant" classpathref="ivy.lib.path"/>
+    </target>
+    
     <target name="init">
         <mkdir dir="${build}" />
         <mkdir dir="${classes}" />
         <mkdir dir="${dist}" />
-        <mkdir dir="${versionfolder}" />
-
+        <mkdir dir="${version.folder}" />
+    </target>
+    
+    <target depends="init-ivy" name="ivy-retrieve">
+        <ivy:retrieve sync="true"/>
+        <ivy:report graph="false" todir="resources/licenses/"/>
+        <exec executable="git" outputproperty="git.ivychange" failifexecutionfails="false" errorproperty="">
+            <arg value="diff"/>
+            <arg value="--numstat"/>
+            <arg value="ivy.xml"/>
+        </exec>
+        <exec executable="git" failifexecutionfails="false" errorproperty="" if:blank="${git.ivychange}">
+            <arg value="checkout"/>
+            <arg value="resources/licenses/tv.phantombot-phantombot-default.html"/>
+        </exec>
+    </target>
+    
+    <target depends="init-ivy" name="ivy-cleancache">
+        <ivy:cleancache/>
+    </target>
+    
+    <target name="clearlib">
+        <delete>
+            <fileset dir="${reference}" includes="**/*.jar" />
+        </delete>
+    </target>
+    
+    <target depends="clearlib,ivy-cleancache,ivy-retrieve" name="ivy-clean-retrieve" />
+    
+    <target depends="ivy-retrieve" name="classpaths">
+        <path id="reference.class.path">
+            <fileset dir="${reference}">
+                <include name="*.jar" />
+                <exclude name="*sources.jar"/>
+                <exclude name="*javadoc.jar"/>
+            </fileset>
+        </path>
+        
         <pathconvert property="mf.classpath" pathsep=" ">
             <path refid="reference.class.path" />
             <mapper>
@@ -57,84 +149,128 @@
                 <length string="${git.revision}" trim="yes" length="0" when="greater"/>
             </and>
         </condition>
-        <echo>Building revision ${repository.version}</echo>
     </target>
 
-    <target depends="init,git.revision" name="pre.compile">
-        <replace
-            file="source/me/mast3rplan/phantombot/RepoVersion.java"
-            token="@repository.version@"
-            value="${repository.version}" />
+    <target depends="init,ivy-retrieve,classpaths,git.revision" name="pre.compile">
+        <echo>${ant.project.name} Version ${version} (${repository.version}) (${build_type})</echo>
+        <echo>${ant.project.name} Control Panel Version ${webpanel.version}</echo>
+        <replaceregexp
+            file="source/tv/phantombot/RepoVersion.java"
+            match="repoVersion = &quot;(.*)&quot;;"
+            replace="repoVersion = &quot;${repository.version}&quot;;" />
+        <replaceregexp
+            file="source/tv/phantombot/RepoVersion.java"
+            match="buildType = &quot;(.*)&quot;;"
+            replace="buildType = &quot;${build_type}&quot;;" />
+        <replaceregexp
+            file="source/tv/phantombot/RepoVersion.java"
+            match="phantomBotVersion = &quot;(.*)&quot;;"
+            replace="phantomBotVersion = &quot;${version}&quot;;" />
+        <replaceregexp
+            file="source/tv/phantombot/RepoVersion.java"
+            match="panelVersion = &quot;(.*)&quot;;"
+            replace="panelVersion = &quot;${webpanel.version}&quot;;" />
     </target>
 
     <target depends="pre.compile" name="compile.src">
-        <javac target="1.7" source="1.7" debug="on" destdir="${classes}" srcdir="${src}" includeantruntime="false" >
+        <echo>Compiling with Java Version ${ant.java.version} (${java.version})</echo>
+        <javac target="11" source="11" debug="on" destdir="${classes}" srcdir="${src}" includeantruntime="false" >
             <compilerarg value="-Xlint:unchecked" />
             <compilerarg value="-Xlint:-options" />
+            <compilerarg line="--add-exports java.base/sun.security.x509=ALL-UNNAMED" />
             <classpath refid="reference.class.path" />
         </javac>
     </target>
-    
+
     <target depends="pre.compile" name="clean.build.test">
         <delete dir="${build}" />
         <mkdir dir="${build}" />
         <mkdir dir="${classes}" />
     </target>
-    
+
     <target depends="clean.build.test" name="compile.src.test">
-        <javac target="1.7" source="1.7" debug="on" destdir="${classes}" srcdir="${src}" includeantruntime="false" >
+        <javac target="11" source="11" debug="on" destdir="${classes}" srcdir="${src}" includeantruntime="false" >
             <compilerarg value="-Xlint:all" />
             <compilerarg value="-Xlint:-options" />
+            <compilerarg line="--add-exports java.base/sun.security.x509=ALL-UNNAMED" />
             <classpath refid="reference.class.path" />
         </javac>
     </target>
-    
+
     <target name="post.compile">
-        <replace
-            file="source/me/mast3rplan/phantombot/RepoVersion.java"
-            token="${repository.version}"
-            value="@repository.version@" />
+        <replaceregexp
+            file="source/tv/phantombot/RepoVersion.java"
+            match="repoVersion = &quot;(.*)&quot;;"
+            replace="repoVersion = &quot;@repository.version@&quot;;" />
+        <replaceregexp
+            file="source/tv/phantombot/RepoVersion.java"
+            match="buildType = &quot;(.*)&quot;;"
+            replace="buildType = &quot;@buildtype@&quot;;" />
+        <replaceregexp
+            file="source/tv/phantombot/RepoVersion.java"
+            match="phantomBotVersion = &quot;(.*)&quot;;"
+            replace="phantomBotVersion = &quot;@phantombot.version@&quot;;" />
+        <replaceregexp
+            file="source/tv/phantombot/RepoVersion.java"
+            match="panelVersion = &quot;(.*)&quot;;"
+            replace="panelVersion = &quot;@webpanel.version@&quot;;" />
     </target>
 
-    <target depends="compile.src,post.compile" name="jar">
-        <jar destfile="${build.dir}/PhantomBot.jar">
+    <target depends="compile.src,post.compile,git.revision" name="jar">
+        <jar destfile="${build.dir}/${ant.project.name}.jar">
             <fileset dir="${classes}" />
             <manifest>
-                <attribute name="Bundle-Name" value="${project.name}" />           
-                <attribute name="Bundle-Version" value="${version.num}" />
+                <attribute name="Bundle-Name" value="${ant.project.name}" />
+                <attribute name="Bundle-Version" value="${version}" />
+                <attribute name="Bundle-Revision" value="${git.revision}" />
                 <attribute name="Bundle-Date" value="${NOW}" />
-                <attribute name="Implementation-Title" value="${project.name}" />
-                <attribute name="Implementation-Version" value="${version.num}" />
-                <attribute name="Implementation-URL" value="http://www.phantombot.net" />
+                <attribute name="Implementation-Title" value="${ant.project.name}" />
+                <attribute name="Implementation-Version" value="${version}" />
+                <attribute name="Implementation-Revision" value="${git.revision}" />
+                <attribute name="Implementation-URL" value="https://phantombot.github.io/PhantomBot" />
                 <attribute name="Class-Path" value="${mf.classpath}" />
-                <attribute name="Main-Class" value="me.mast3rplan.phantombot.Main" />
+                <attribute name="Main-Class" value="tv.phantombot.PhantomBot" />
             </manifest>
         </jar>
+
         <mkdir dir="${lib.dir}" />
+        <echo level="info" message="staging lib folder into build dir." />
         <copy todir="${lib.dir}">
-            <fileset dir="./libraries" />
+            <fileset dir="${reference}">
+                <include name="*.jar" />
+                <exclude name="*sources.jar"/>
+                <exclude name="*javadoc.jar"/>
+            </fileset>
         </copy>
-        <echo level="info" message="lib folder content was copied." />
+        <echo level="info" message="staging resources folder into build dir." />
         <copy todir="${res.dir}">
             <fileset dir="./resources" />
         </copy>
-        <echo level="info" message="res folder content was copied." />
-        <copy todir="${versionfolder}">
-            <fileset dir="${build.dir}" />
+        <echo level="info" message="staging javascript-source folder into build dir." />
+        <copy todir="${res.dir}/scripts">
+            <fileset dir="./javascript-source" />
         </copy>
+        <replaceregexp
+            file="${build.dir}/web/panel/js/utils/helpers.js"
+            match="helpers\.PANEL_VERSION = &quot;(.*)&quot;;"
+            replace="helpers\.PANEL_VERSION = &quot;${webpanel.version}&quot;;" />
+        <echo level="info" message="staging files into distribution folder." />
+        <move todir="${version.folder}">
+            <fileset dir="${build.dir}" />
+        </move>
     </target>
-     
-    <target depends="compile.src.test,post.compile" name="test"></target>
-     
+
+    <target depends="compile.src.test,post.compile" name="test"/>
+
     <target name="run" depends="jar">
-        <java fork="true" classname="me.mast3rplan.phantombot.PhantomBot" dir="${build.dir}">
+        <java fork="true" classname="tv.phantombot.PhantomBot" dir="${build.dir}">
             <classpath>
                 <path refid="classpath" />
-                <path location="${build.dir}/PhantomBot.jar" />
+                <path location="${build.dir}/${ant.project.name}.jar" />
             </classpath>
         </java>
     </target>
-     
+
     <target depends="jar" name="dist">
         <delete file="${dist}/${version.name}.zip" />
         <zip destfile="${dist}/${version.name}.zip" basedir="${dist}" update="false">

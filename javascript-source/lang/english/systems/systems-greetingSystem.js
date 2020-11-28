@@ -1,11 +1,27 @@
-$.lang.register('greetingsystem.set.autogreet.enabled', 'Auto Greeting enabled. $1 will now greet everyone.');
-$.lang.register('greetingsystem.set.autogreet.disabled', 'Auto Greeting disabled. $1 will no longer greet everyone.');
-$.lang.register('greetingsystem.set.autogreet.usage', 'Usage: !greeting setdefault [message].  Use "(name)" to insert user\'s name');
-$.lang.register('greetingsystem.set.autogreet.noname', 'The default greeting message need the tag "(name)" to know where to put the user\'s username.');
-$.lang.register('greetingsystem.set.autogreet.success', 'Changed default greeting to "$1". Auto Greeting is currently $2.');
+/*
+ * Copyright (C) 2016-2020 phantombot.github.io/PhantomBot
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+$.lang.register('greetingsystem.set.autogreet.enabled', 'Auto greeting enabled. $1 will now greet viewers with a greeting configured.');
+$.lang.register('greetingsystem.set.autogreet.disabled', 'Auto greeting disabled.');
+$.lang.register('greetingsystem.set.autogreet.noname', 'Please use the (name) tag in the default greeting.');
+$.lang.register('greetingsystem.set.default.success', 'Changed the default greeting to "$1".');
 $.lang.register('greetingsystem.set.personal.success', 'Changed your personal greeting to "$1".');
 $.lang.register('greetingsystem.remove.personal.success', 'Successfully removed your personal greeting message.');
-$.lang.register('greetingsystem.generalusage.admin', 'Usage: !greeting toggledefault, !greeting setdefault [message], !greeting enable [message], !greeting disable.');
-$.lang.register('greetingsystem.generalusage.other', 'Use "!greeting enable [message]" to have the bot greet you when you enter the chat. Use "!greeting disable" to disable your greeting.');
-$.lang.register('greetingsystem.cooldown.usage', 'usage: !greeting cooldown [minutes]');
-$.lang.register('greetingsystem.cooldown.success', 'Greetings cooldown set to $1 minutes ($2 hours).');
+$.lang.register('greetingsystem.generalusage.admin', 'Usage: !greeting [toggle | enable [default | message text] | disable | setdefault ]. Tags for message text: (name)');
+$.lang.register('greetingsystem.generalusage.other', 'Usage: !greeting [ enable [default | message text] | disable ]. Tags for message text: (name)');
+$.lang.register('greetingsystem.cooldown.usage', 'Usage: !greeting cooldown [hours]');
+$.lang.register('greetingsystem.cooldown.success', 'Greetings cooldown set to $1 hours.');

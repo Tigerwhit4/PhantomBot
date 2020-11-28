@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 www.phantombot.net
+ * Copyright (C) 2016-2020 phantombot.github.io/PhantomBot
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,23 +19,15 @@ package com.gmt2001.Console;
 import com.gmt2001.Logger;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.TimeZone;
-import me.mast3rplan.phantombot.PhantomBot;
+import tv.phantombot.PhantomBot;
 
 /**
  *
- * @author Gary Tekulsky
+ * @author gmt2001
  */
-public class in {
+public final class in {
 
-    private static final in instance = new in();
     private static final BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
-
-    public static in instance() {
-        return instance;
-    }
 
     private in() {
     }
@@ -43,13 +35,8 @@ public class in {
     public static String readLine() throws Exception {
         String s = br.readLine();
 
-        if (PhantomBot.enableDebugging) {
-            SimpleDateFormat datefmt = new SimpleDateFormat("MM-dd-yyyy @ HH:mm:ss.SSS");
-            datefmt.setTimeZone(TimeZone.getTimeZone("GMT"));
-
-            String timestamp = datefmt.format(new Date());
-
-            Logger.instance().log(Logger.LogType.Input, timestamp + "Z " + s);
+        if (PhantomBot.getEnableDebugging()) {
+            Logger.instance().log(Logger.LogType.Input, "[" + logTimestamp.log() + "] " + s);
             Logger.instance().log(Logger.LogType.Input, "");
         }
 

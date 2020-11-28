@@ -1,3 +1,20 @@
+/*
+ * Copyright (C) 2016-2020 phantombot.github.io/PhantomBot
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 /**
  * pollSystem.js
  *
@@ -6,20 +23,47 @@
  */
 (function() {
     var poll = {
-        pollId: 0,
-        options: [],
-        votes: [],
-        voters: [],
-        callback: function() {},
-        pollRunning: false,
-        pollMaster: '',
-        time: 0,
-        question: '',
-        minVotes: 0,
-        result: '',
-        pollTimerId: -1,
-        hasTie: 0,
-        counts: [],
+            pollId: 0,
+            options: [],
+            votes: [],
+            voters: [],
+            callback: function() {},
+            pollRunning: false,
+            pollMaster: '',
+            time: 0,
+            question: '',
+            minVotes: 0,
+            result: '',
+            hasTie: 0,
+            counts: [],
+        },
+        timeout;
+    var objOBS = [];
+
+    /**
+     * @function hasKey
+     * @param {Array} list
+     * @param {*} value
+     * @param {Number} [subIndex]
+     * @returns {boolean}
+     */
+    function hasKey(list, value, subIndex) {
+        var i;
+
+        if (subIndex > -1) {
+            for (i in list) {
+                if (list[i][subIndex].equalsIgnoreCase(value)) {
+                    return true;
+                }
+            }
+        } else {
+            for (i in list) {
+                if (list[i].equalsIgnoreCase(value)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     };
 
     // Compile regular expressions.
@@ -46,9 +90,11 @@
             return false
         }
 
+        objOBS = [];
+
         poll.pollRunning = true;
         poll.pollMaster = pollMaster;
-        poll.time = (isNaN(time) || time == 0 ? false : time * 1000);
+        poll.time = (parseInt(time) * 1000);
         poll.callback = callback;
         poll.question = question;
         poll.options = options;
@@ -58,18 +104,40 @@
         poll.counts = [];
         poll.hasTie = 0;
 
+        // Remove the old files.
+        $.inidb.RemoveFile('pollPanel');
+        $.inidb.RemoveFile('pollVotes');
+
+        
         for (var i = 0; i < poll.options.length; i++) {
             optionsStr += (i + 1) + ") " + poll.options[i] + " ";
+            $.inidb.set('pollVotes', poll.options[i], 0);
+            objOBS.push({
+                'label': poll.options[i],
+                'votes': 0
+            });
         }
+        
 
-        $.say($.lang.get('pollsystem.poll.started', $.resolveRank(pollMaster), time, poll.minVotes, poll.question, optionsStr));
-        if (poll.time) {
-            poll.pollTimerId = setTimeout(function() {
+        if (poll.time > 0) {
+            $.say($.lang.get('pollsystem.poll.started', $.resolveRank(pollMaster), time, poll.minVotes, poll.question, optionsStr));
+
+            timeout = setTimeout(function() {
                 endPoll();
-                clearTimeout(poll.pollTimerId);
             }, poll.time);
+        } else {
+            $.say($.lang.get('pollsystem.poll.started.nottime', $.resolveRank(pollMaster), poll.minVotes, poll.question, optionsStr));
         }
 
+        var msg = JSON.stringify({
+            'start_poll': 'true',
+            'data': JSON.stringify(objOBS)
+        });
+        $.alertspollssocket.sendJSONToAll(msg);
+
+        $.inidb.set('pollPanel', 'title', question);
+        $.inidb.set('pollPanel', 'options', options.join(','));
+        $.inidb.set('pollPanel', 'isActive', 'true');
         return true;
     };
 
@@ -82,10 +150,10 @@
         var optionIndex;
 
         if (!poll.pollRunning) {
-            $.say($.whisperPrefix(sender) + $.lang.get('pollsystem.vote.nopoll'));
+            return;
         }
 
-        if ($.list.contains(poll.voters, sender.toLowerCase())) {
+        if (hasKey(poll.voters, sender.toLowerCase())) {
             $.say($.whisperPrefix(sender) + $.lang.get('pollsystem.vote.already'));
             return;
         }
@@ -97,9 +165,18 @@
         }
 
         optionIndex--;
-        $.say($.whisperPrefix(sender) + $.lang.get('pollsystem.vote.success', poll.options[optionIndex], poll.question));
         poll.voters.push(sender);
         poll.votes.push(optionIndex);
+        for (var i = 0; i < objOBS.length; i++) {
+            if (objOBS[i].label == poll.options[optionIndex])
+                objOBS[i].votes++;
+        }
+        var msg = JSON.stringify({
+            'new_vote': 'true',
+            'data': JSON.stringify(objOBS)
+        });
+        $.alertspollssocket.sendJSONToAll(msg);
+        $.inidb.incr('pollVotes', poll.options[optionIndex], 1);
     };
 
     /**
@@ -114,11 +191,13 @@
             return;
         }
 
-        if (poll.pollTimerId > -1) {
-            clearTimeout(poll.pollTimerId);
-            poll.pollTimerId = -1;
-        }
+        clearTimeout(timeout);
 
+        $.inidb.set('pollPanel', 'isActive', 'false');
+        var msg = JSON.stringify({
+            'end_poll': 'true'
+        });
+        $.alertspollssocket.sendJSONToAll(msg);
         if (poll.minVotes > 0 && poll.votes.length < poll.minVotes) {
             poll.result = '';
             poll.pollMaster = '';
@@ -136,6 +215,14 @@
         poll.result = poll.options[winner];
         poll.pollMaster = '';
         poll.pollRunning = false;
+
+        // Store the results for the Panel to read.
+        $.inidb.set('pollresults', 'question', poll.question);
+        $.inidb.set('pollresults', 'result', poll.result);
+        $.inidb.set('pollresults', 'votes', poll.votes.length);
+        $.inidb.set('pollresults', 'options', poll.options.join(','));
+        $.inidb.set('pollresults', 'counts', poll.counts.join(','));
+        $.inidb.set('pollresults', 'istie', poll.hasTie);
         poll.callback(poll.result);
     };
 
@@ -149,12 +236,10 @@
             args = event.getArgs(),
             action = args[0];
 
-        if (command.equalsIgnoreCase('vote') && action) {
-            if (!poll.pollRunning) {
-                $.say($.whisperPrefix(sender) + $.lang.get('pollsystem.vote.nopoll'));
-                return;
+        if (command.equalsIgnoreCase('vote') && action !== undefined) {
+            if (poll.pollRunning) {
+                vote(sender, action);
             }
-            vote(sender, action);
         }
 
         /**
@@ -163,19 +248,14 @@
         if (command.equalsIgnoreCase('poll')) {
             if (!action) {
                 if (poll.pollRunning) {
-                    $.say($.whisperPrefix(sender) + $.lang.get('pollsystem.poll.running', poll.question, poll.options.join('", "')));
-                } else {
-                    if (!$.isMod(sender)) {
-                        $.say($.whisperPrefix(sender) + $.modMsg);
-                        return;
+                    var optionsStr = "";
+                    for (var i = 0; i < poll.options.length; i++) {
+                        optionsStr += (i + 1) + ") " + poll.options[i] + (i == poll.options.length - 1 ? "" : " ");
                     }
+                    $.say($.whisperPrefix(sender) + $.lang.get('pollsystem.poll.running', poll.question, optionsStr));
+                } else {
                     $.say($.whisperPrefix(sender) + $.lang.get('pollsystem.poll.usage'));
                 }
-                return;
-            }
-
-            if (!$.isMod(sender)) {
-                $.say($.whisperPrefix(sender) + $.modMsg);
                 return;
             }
 
@@ -187,9 +267,9 @@
                     $.say($.lang.get('pollsystem.results.running'));
                 } else if (poll.result != '') {
                     if (poll.hasTie) {
-                        $.say($.lang.get('pollsystem.results.lastpoll', poll.question, poll.votes.length, "Tie!", poll.options.join('", "'), poll.counts.join('", "')));
+                        $.say($.lang.get('pollsystem.results.lastpoll', poll.question, poll.votes.length, "Tie!", poll.options.join(', '), poll.counts.join(', ')));
                     } else {
-                        $.say($.lang.get('pollsystem.results.lastpoll', poll.question, poll.votes.length, poll.result, poll.options.join('", "'), poll.counts.join(', ')));
+                        $.say($.lang.get('pollsystem.results.lastpoll', poll.question, poll.votes.length, poll.result, poll.options.join(', '), poll.counts.join(', ')));
                     }
                 } else {
                     $.say($.whisperPrefix(sender) + $.lang.get('pollsystem.results.404'));
@@ -197,10 +277,10 @@
             }
 
             /**
-             * @commandpath poll open ["poll question"] ["option1, option2, ..."] [seconds] [min votes] - Starts a poll with question and options. Optionally provide seconds and min votes. If seconds are 0, defaults to 60
+             * @commandpath poll open ["poll question"] ["option1, option2, ..."] [seconds] [min votes] - Starts a poll with question and options. Optionally provide seconds and min votes.
              */
             if (action.equalsIgnoreCase('open')) {
-                var time = 60,
+                var time = 0,
                     question = '',
                     options = [],
                     minVotes = 1;
@@ -224,16 +304,16 @@
                     return;
                 }
 
-                if (isNaN(time) || !question || !options || options.length == 0 || isNaN(minVotes) || minVotes < 1) {
+                if (!question || !options || options.length === 0 || isNaN(minVotes) || minVotes < 1) {
                     $.say($.whisperPrefix(sender) + $.lang.get('pollsystem.open.usage'));
                     return;
                 }
-                if (options.length == 1) {
+                if (options.length === 1) {
                     $.say($.whisperPrefix(sender) + $.lang.get('pollsystem.open.moreoptions'));
                     return;
                 }
 
-                if (runPoll(question, options, (time == 0 ? 60 : time), sender, minVotes, function(winner) {
+                if (runPoll(question, options, parseInt(time), sender, minVotes, function(winner) {
                         if (winner === false) {
                             $.say($.lang.get('pollsystem.runpoll.novotes', question));
                             return;
@@ -248,7 +328,6 @@
                 } else {
                     $.say($.whisperPrefix(sender) + $.lang.get('pollsystem.results.running'));
                 }
-
             }
 
             /**
@@ -268,15 +347,16 @@
      * @event initReady
      */
     $.bind('initReady', function() {
-        if ($.bot.isModuleEnabled('./systems/pollSystem.js')) {
-            $.registerChatCommand('./systems/pollSystem.js', 'poll', 7);
-            $.registerChatCommand('./systems/pollSystem.js', 'vote', 7);
-        }
+        $.registerChatCommand('./systems/pollSystem.js', 'poll', 2);
+        $.registerChatCommand('./systems/pollSystem.js', 'vote', 7);
+        $.registerChatSubcommand('poll', 'results', 2);
+        $.registerChatSubcommand('poll', 'open', 2);
+        $.registerChatSubcommand('poll', 'close', 2);
     });
 
     /** Export functions to API */
     $.poll = {
         runPoll: runPoll,
-        endPoll: endPoll,
+        endPoll: endPoll
     };
 })();

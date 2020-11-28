@@ -37,10 +37,8 @@ $RECYCLE.BIN/
 Network Trash Folder
 Temporary Items
 .apdisk
-nbproject/
-dist/
-build/
-/bin/
+bin/
+.vscode/
 
 # Files created by the bot inside resources folder
 resources/bannedUsers.bin
@@ -50,11 +48,28 @@ resources/stacktrace.txt
 resources/stdio.txt
 resources/web/default.html
 resources/web/default.txt
+resources/scripts/*
+
+# Do not include the class files for GenerateTwitterTokens
+genTwitterTokens/classes/generatetwittertokens
 
 # IntelliJ Project files
+dist/
+build/
+out/
 .idea
+*.iml
 
 # Netbeans Project files
-nbproject
+nbproject/
 
 # Eclipse Project files
+.settings/
+.classpath
+.project
+
+# Libs downloaded from Maven
+lib/
+
+# Allow java-runtime files
+!resources/java-runtime*/*

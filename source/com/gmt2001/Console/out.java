@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 www.phantombot.net
+ * Copyright (C) 2016-2020 phantombot.github.io/PhantomBot
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,34 +17,20 @@
 package com.gmt2001.Console;
 
 import com.gmt2001.Logger;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.TimeZone;
-import me.mast3rplan.phantombot.PhantomBot;
+import tv.phantombot.PhantomBot;
 
 /**
  *
- * @author Gary Tekulsky
+ * @author gmt2001
  */
-public class out {
-
-    private static final out instance = new out();
-
-    public static out instance() {
-        return instance;
-    }
+public final class out {
 
     private out() {
     }
 
     public static void print(Object o) {
-        if (PhantomBot.enableDebugging) {
-            SimpleDateFormat datefmt = new SimpleDateFormat("MM-dd-yyyy @ HH:mm:ss.SSS");
-            datefmt.setTimeZone(TimeZone.getTimeZone("GMT"));
-
-            String timestamp = datefmt.format(new Date());
-
-            Logger.instance().log(Logger.LogType.Output, timestamp + "Z " + o.toString());
+        if (PhantomBot.getEnableDebugging()) {
+            Logger.instance().log(Logger.LogType.Output, "[" + logTimestamp.log() + "] " + o.toString());
         }
 
         System.out.print(o);
@@ -55,16 +41,6 @@ public class out {
     }
 
     public static void println(Object o) {
-        SimpleDateFormat datefmt = new SimpleDateFormat("MM-dd-yyyy @ HH:mm:ss.SSS");
-        datefmt.setTimeZone(TimeZone.getTimeZone("GMT"));
-
-        String timestamp = datefmt.format(new Date());
-
-        if (PhantomBot.enableDebugging) {
-            Logger.instance().log(Logger.LogType.Output, timestamp + "Z " + o.toString());
-            Logger.instance().log(Logger.LogType.Output, "");
-        }
-
-        System.out.println("[" + timestamp + "] " + o);
+        System.out.println("[" + logTimestamp.log() + "] " + o);
     }
 }

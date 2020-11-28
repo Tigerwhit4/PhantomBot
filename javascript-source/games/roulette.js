@@ -1,15 +1,36 @@
+/*
+ * Copyright (C) 2016-2020 phantombot.github.io/PhantomBot
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 /**
  * roulette.js
  *
  * Resolve issues with a game of russian roulette.
  */
 (function() {
-    var timeoutTime = ($.inidb.exists('roulette', 'timeoutTime') ? parseInt($.inidb.get('roulette', 'timeoutTime')) : 60),
+    var timeoutTime = $.getSetIniDbNumber('roulette', 'timeoutTime', 60),
         responseCounts = {
             win: 0,
             lost: 0,
         },
         lastRandom = 0;
+
+    function reloadRoulette() {
+        timeoutTime = $.getIniDbNumber('roulette', 'timeoutTime');
+    };
 
     /**
      * @function loadResponses
@@ -33,9 +54,7 @@
      * @param {string} username
      */
     function timeoutUserR(username) {
-        setTimeout(function() {
-            $.say('.timeout ' + username + ' ' + timeoutTime);
-        }, 2500);
+        $.session.say('.timeout ' + username + ' ' + timeoutTime);
     };
 
     /**
@@ -76,7 +95,7 @@
         }
 
         /**
-         * @commandpath roulettetimeouttime [seconds] - Set the timeout time for the roulette command
+         * @commandpath roulettetimeouttime [seconds] - Sets for how long the user gets timed out for when loosing at roulette
          */
         if (command.equalsIgnoreCase('roulettetimeouttime')) {
             if (!$.isAdmin(sender)) {
@@ -99,10 +118,13 @@
      * @event initReady
      */
     $.bind('initReady', function() {
-        if ($.bot.isModuleEnabled('./games/roulette.js')) {
+        if (responseCounts.win == 0 && responseCounts.lost == 0) {
             loadResponses();
-            $.registerChatCommand('./games/roulette.js', 'roulette', 7);
-            $.registerChatCommand('./games/roulette.js', 'roulettetimeouttime', 1);
         }
+
+        $.registerChatCommand('./games/roulette.js', 'roulette', 7);
+        $.registerChatCommand('./games/roulette.js', 'roulettetimeouttime', 1);
     });
+
+    $.reloadRoulette = reloadRoulette;
 })();

@@ -1,3 +1,20 @@
+/*
+ * Copyright (C) 2016-2020 phantombot.github.io/PhantomBot
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 (function() {
 
     /**
@@ -14,11 +31,6 @@
          * @commandpath wordcounter - Configures various option for the wordcounter
          */
         if (command.equalsIgnoreCase('wordcounter')) {
-            if (!$.isAdmin(sender)) {
-                $.say($.whisperPrefix(sender) + $.adminMsg);
-                return;
-            }
-
             if (!action) {
                 $.say($.whisperPrefix(sender) + $.lang.get('wordcounter.usage'));
                 return;
@@ -33,9 +45,10 @@
                     return;
                 }
 
-                subAction = subAction.replace(action, '');
+                subAction = subAction.replace(action, '').toLowerCase();
                 $.inidb.set('wordCounter', subAction, 0);
                 $.say(subAction + $.lang.get('wordcounter.added'));
+                $.log.event(sender + ' added "' + subAction + '" to the word counter list');
             }
 
             /**
@@ -50,17 +63,18 @@
                     return;
                 }
 
-                subAction = subAction.replace(action, '');
+                subAction = subAction.replace(action, '').toLowerCase();
                 $.inidb.del('wordCounter', subAction);
                 $.say(subAction + $.lang.get('wordcounter.removed'));
+                $.log.event(sender + ' removed "' + subAction + '" from the word counter list');
             }
         }
 
         /**
-         * @commandpath wordcounter count [word] - Tells you how many times that word as been said in chat.
+         * @commandpath count [word] - Tells you how many times that word as been said in chat.
          */
         if (command.equalsIgnoreCase('count')) {
-            if (!$.inidb.exists('wordCounter', action.toLowerCase())) {
+            if (!action || !$.inidb.exists('wordCounter', action.toLowerCase())) {
                 $.say($.whisperPrefix(sender) + $.lang.get('wordcounter.err.404'));
                 return;
             }
@@ -82,9 +96,8 @@
         if ($.bot.isModuleEnabled('./handlers/wordCounter.js')) {
             for (i in keys) {
                 key = keys[i].toLowerCase();
-                word = new RegExp('\\b' + key + '\\b', 'g');
+                word = new RegExp('\\b' + key + '\\b', 'ig');
                 if (word.exec(message)) {
-                    $.consoleDebug('inidb incr' + key + ' 1 in word counter');
                     $.inidb.incr('wordCounter', key, 1);
                     break;
                 }
@@ -96,9 +109,7 @@
      * @event initReady
      */
     $.bind('initReady', function() {
-        if ($.bot.isModuleEnabled('./handlers/wordCounter.js')) {
-            $.registerChatCommand('./handlers/wordCounter.js', 'wordcounter', 1);
-            $.registerChatCommand('./handlers/wordCounter.js', 'count', 7);
-        }
+        $.registerChatCommand('./handlers/wordCounter.js', 'wordcounter', 1);
+        $.registerChatCommand('./handlers/wordCounter.js', 'count', 7);
     });
 })();

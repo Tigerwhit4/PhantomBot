@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 www.phantombot.net
+ * Copyright (C) 2016-2020 phantombot.github.io/PhantomBot
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,55 +20,67 @@ import com.gmt2001.Logger;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.io.Writer;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.TimeZone;
+import tv.phantombot.PhantomBot;
 
 /**
  *
- * @author Gary Tekulsky
+ * @author gmt2001
  */
-public class err {
-
-    private static final err instance = new err();
-
-    public static err instance() {
-        return instance;
-    }
+public final class err {
 
     private err() {
     }
 
     public static void print(Object o) {
-        System.err.print(o);
+        String stackInfo;
+        String methodName = Thread.currentThread().getStackTrace()[2].getMethodName();
+        String fileName = Thread.currentThread().getStackTrace()[2].getFileName();
+        int lineNumber = Thread.currentThread().getStackTrace()[2].getLineNumber();
+        stackInfo = "[" +  methodName + "()@" + fileName + ":" + lineNumber + "] ";
 
-        SimpleDateFormat datefmt = new SimpleDateFormat("MM-dd-yyyy @ HH:mm:ss.SSS");
-        datefmt.setTimeZone(TimeZone.getTimeZone("GMT"));
-
-        String timestamp = datefmt.format(new Date());
-
-        Logger.instance().log(Logger.LogType.Error, timestamp + "Z " + o.toString());
+        Logger.instance().log(Logger.LogType.Error, "[" + logTimestamp.log() + "] " + stackInfo + o.toString());
+        System.err.print("[" + logTimestamp.log() + "] [ERROR] " + stackInfo + o);
     }
 
     public static void println() {
         System.err.println();
     }
 
+    public static void printlnRhino(Object o) {
+        // Do not write to a log file as the JS Rhino files already do this. //
+        System.out.println("[" + logTimestamp.log() + "] [ERROR] " + o);
+    }
+
     public static void println(Object o) {
-        System.err.println(o);
+        String stackInfo;
+        String methodName = Thread.currentThread().getStackTrace()[2].getMethodName();
+        String fileName = Thread.currentThread().getStackTrace()[2].getFileName();
+        int lineNumber = Thread.currentThread().getStackTrace()[2].getLineNumber();
+        stackInfo = "[" +  methodName + "()@" + fileName + ":" + lineNumber + "] ";
 
-        SimpleDateFormat datefmt = new SimpleDateFormat("MM-dd-yyyy @ HH:mm:ss.SSS");
-        datefmt.setTimeZone(TimeZone.getTimeZone("GMT"));
-
-        String timestamp = datefmt.format(new Date());
-
-        Logger.instance().log(Logger.LogType.Error, timestamp + "Z " + o.toString());
+        Logger.instance().log(Logger.LogType.Error, "[" + logTimestamp.log() + "] " + stackInfo + o.toString());
         Logger.instance().log(Logger.LogType.Error, "");
+        System.err.println("[" + logTimestamp.log() + "] [ERROR] " + stackInfo + o);
+    }
+
+    public static void println(Object o, Boolean logOnly) {
+        String stackInfo;
+        String methodName = Thread.currentThread().getStackTrace()[2].getMethodName();
+        String fileName = Thread.currentThread().getStackTrace()[2].getFileName();
+        int lineNumber = Thread.currentThread().getStackTrace()[2].getLineNumber();
+        stackInfo = "[" +  methodName + "()@" + fileName + ":" + lineNumber + "] ";
+
+        Logger.instance().log(Logger.LogType.Error, "[" + logTimestamp.log() + "] " + stackInfo + o.toString());
+        Logger.instance().log(Logger.LogType.Error, "");
+        if (!logOnly) {
+            System.err.println("[" + logTimestamp.log() + "] [ERROR] " + stackInfo + o);
+        }
     }
 
     public static void printStackTrace(Throwable e) {
-        e.printStackTrace(System.err);
-
+        if (PhantomBot.getEnableDebugging()) {
+            e.printStackTrace(System.err);
+        }
         logStackTrace(e);
     }
 
@@ -78,12 +90,7 @@ public class err {
 
         e.printStackTrace(ptrace);
 
-        SimpleDateFormat datefmt = new SimpleDateFormat("MM-dd-yyyy @ HH:mm:ss.SSS");
-        datefmt.setTimeZone(TimeZone.getTimeZone("GMT"));
-
-        String timestamp = datefmt.format(new Date());
-
-        Logger.instance().log(Logger.LogType.Error, timestamp + "Z " + trace.toString());
+        Logger.instance().log(Logger.LogType.Error, "[" + logTimestamp.log() + "] " + trace.toString());
         Logger.instance().log(Logger.LogType.Error, "");
     }
 }

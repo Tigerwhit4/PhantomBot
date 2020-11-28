@@ -1,3 +1,20 @@
+/*
+ * Copyright (C) 2016-2020 phantombot.github.io/PhantomBot
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 /**
  * 8ball.js
  *
@@ -32,7 +49,8 @@
          */
         if (command.equalsIgnoreCase('8ball')) {
             if (!args[0]) {
-                $.say($.whisperPrefix(sender) + $.lang.get('8ball.usage'));
+                $.say($.resolveRank(sender) + ' ' + $.lang.get('8ball.usage'));
+                $.returnCommandCost(sender, command, $.isModv3(sender, event.getTags()));
                 return
             }
 
@@ -49,9 +67,9 @@
      * @event initReady
      */
     $.bind('initReady', function() {
-        if ($.bot.isModuleEnabled('./games/8ball.js')) {
+        if (responseCount == 0) {
             loadResponses();
-            $.registerChatCommand('./games/8ball.js', '8ball', 7);
         }
+        $.registerChatCommand('./games/8ball.js', '8ball', 7);
     });
 })();
